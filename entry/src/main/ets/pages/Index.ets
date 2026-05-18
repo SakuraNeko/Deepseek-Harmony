@@ -85,6 +85,16 @@ struct Index {
             } catch (err) {
               hilog.error(DOMAIN, TAG, 'Failed to set user agent');
             }
+            // 注册 JS 代理对象，供网页端调用 deepseekNative.share(url) 唤起分享
+            try {
+              this.controller.registerJavaScriptProxy({
+                share: (url: string): void => {
+                  this.triggerShare(url);
+                }
+              }, 'deepseekNative', ['share']);
+            } catch (err) {
+              hilog.warn(DOMAIN, TAG, 'Failed to register JS proxy');
+            }
             this.setupDownloadDelegate();
           })
           .onPageBegin((event) => {
@@ -100,6 +110,8 @@ struct Index {
           .onPageEnd(() => {
             this.isLoading = false;
             this.clearLoadTimeout();
+            // 每次页面加载完成后注入剪贴板拦截脚本
+            this.injectShareInterceptor();
           })
           .onErrorReceive((event) => {
             if (event && event.error && event.error.getErrorCode() !== 0) {
@@ -277,27 +289,44 @@ struct Index {
     }
   }
 
-  private shareCurrentPage(): void {
+  // 注入 JS 覆写 navigator.clipboard.writeText：拦截 DeepSeek 分享链接转为系统分享
+  private injectShareInterceptor(): void {
+    try {
+      this.controller.runJavaScript(`
+        (function() {
+          if (window.__deepseekShareHooked) return;
+          window.__deepseekShareHooked = true;
+          var PREFIX = 'https://chat.deepseek.com/share/';
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            var _orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+            navigator.clipboard.writeText = function(text) {
+              if (typeof text === 'string' && text.indexOf(PREFIX) === 0) {
+                try { deepseekNative.share(text); } catch(e) {}
+                return Promise.resolve();
+              }
+              return _orig(text);
+            };
+          }
+        })();
+      `);
+    } catch (err) {
+      // JS injection may fail on restricted pages, ignore silently
+    }
+  }
+
+  // 统一分享入口：唤起系统分享面板
+  private triggerShare(url: string): void {
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      let currentUrl: string = DEEPSEEK_URL;
-      try {
-        const webUrl: string = this.controller.getUrl();
-        if (webUrl && webUrl !== '') {
-          currentUrl = webUrl;
-        }
-      } catch (e) {
-        // fallback to default URL
-      }
       const shareData = new systemShare.SharedData({
         utd: utd.UniformDataType.HYPERLINK,
-        content: currentUrl,
+        content: url,
         title: 'DeepSeek',
         description: '来自DeepSeek的分享内容'
       });
       shareData.addRecord({
         utd: utd.UniformDataType.PLAIN_TEXT,
-        content: 'DeepSeek分享:\n' + currentUrl
+        content: 'DeepSeek分享:\n' + url
       });
       const shareController = new systemShare.ShareController(shareData);
       shareController.on('dismiss', () => {
@@ -309,6 +338,23 @@ struct Index {
       }).catch((err: BusinessError) => {
         hilog.error(DOMAIN, TAG, 'Share failed: %{public}s', err.message);
       });
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, 'Share error');
+    }
+  }
+
+  private shareCurrentPage(): void {
+    try {
+      let currentUrl: string = DEEPSEEK_URL;
+      try {
+        const webUrl: string = this.controller.getUrl();
+        if (webUrl && webUrl !== '') {
+          currentUrl = webUrl;
+        }
+      } catch (e) {
+        // fallback to default URL
+      }
+      this.triggerShare(currentUrl);
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'Share error');
     }
