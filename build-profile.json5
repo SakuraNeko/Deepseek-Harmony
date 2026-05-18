@@ -7,11 +7,11 @@
         "material": {
           "certpath": "C:\\Users\\Sakura\\.ohos\\config\\default_DeepSeek_Up8Mkhrc6vVEgtf6IX9vQQZRgiKb9F7zgZH6QuoIZbU=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B9A46F2707599C5FBD3CECB2ED5FB3381C814CEF3D2192ABF218F125DD50B1A591897F6F8B7B3D5",
+          "keyPassword": "0000001BE49370A35866735BB2E464A93BB8FFE6C006212E82EB0B55A02644596CC3A05A1F49CEAAE18CD0",
           "profile": "C:\\Users\\Sakura\\.ohos\\config\\default_DeepSeek_Up8Mkhrc6vVEgtf6IX9vQQZRgiKb9F7zgZH6QuoIZbU=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:\\Users\\Sakura\\.ohos\\config\\default_DeepSeek_Up8Mkhrc6vVEgtf6IX9vQQZRgiKb9F7zgZH6QuoIZbU=.p12",
-          "storePassword": "0000001BC5045ECCA9BB53B24A9F473542BE6F6F9AB2686AD0DA2E8A1055E6FAB8EF4B5D7A2FCC099F2393"
+          "storePassword": "0000001BEAA166D5A3AB98D2BC946EE4223A3E0CE4FFB46657B18D618E2E5B5D8BAE2BD407799ADB59DB85"
         }
       }
     ],
