@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "DeepSeek AI Assistant for HarmonyOS"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "DeepSeek Main Entry"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "DeepSeek"
+    },
+    {
+      "name": "internet_reason",
+      "value": "需要访问网络以加载DeepSeek AI对话服务"
+    }
+  ]
+}
