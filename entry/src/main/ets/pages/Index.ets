@@ -182,7 +182,14 @@ struct Index {
               return false;
             }
             const requestUrl: string = event.data.getRequestUrl();
-            if (requestUrl.startsWith('share://') || requestUrl.startsWith('intent://share')) {
+            // share://?url=... 由 JS 注入触发，直接唤起系统分享
+            const shareScheme: string = 'share://?url=';
+            if (requestUrl.startsWith(shareScheme)) {
+              const url: string = decodeURIComponent(requestUrl.substring(shareScheme.length));
+              this.triggerShare(url);
+              return true;
+            }
+            if (requestUrl.startsWith('intent://share')) {
               this.shareCurrentPage();
               return true;
             }
@@ -301,7 +308,7 @@ struct Index {
             var _orig = navigator.clipboard.writeText.bind(navigator.clipboard);
             navigator.clipboard.writeText = function(text) {
               if (typeof text === 'string' && text.indexOf(PREFIX) === 0) {
-                try { deepseekNative.share(text); } catch(e) {}
+                window.location.href = 'share://?url=' + encodeURIComponent(text);
                 return Promise.resolve();
               }
               return _orig(text);
