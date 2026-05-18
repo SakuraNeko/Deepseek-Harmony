@@ -5,6 +5,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
+import { connection } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { promptAction, window } from '@kit.ArkUI';
 
@@ -18,6 +19,7 @@ struct Index {
   @State loadingProgress: number = 0;
   @State isLoading: boolean = true;
   @State isError: boolean = false;
+  @State isNetworkError: boolean = false;
   @StorageLink('deepLinkUrl') deepLinkUrl: string = '';
   controller: webview.WebviewController = new webview.WebviewController();
   delegate: webview.WebDownloadDelegate = new webview.WebDownloadDelegate();
@@ -85,21 +87,12 @@ struct Index {
             } catch (err) {
               hilog.error(DOMAIN, TAG, 'Failed to set user agent');
             }
-            // 注册 JS 代理对象，供网页端调用 deepseekNative.share(url) 唤起分享
-            try {
-              this.controller.registerJavaScriptProxy({
-                share: (url: string): void => {
-                  this.triggerShare(url);
-                }
-              }, 'deepseekNative', ['share']);
-            } catch (err) {
-              hilog.warn(DOMAIN, TAG, 'Failed to register JS proxy');
-            }
             this.setupDownloadDelegate();
           })
           .onPageBegin((event) => {
             this.isLoading = true;
             this.isError = false;
+            this.isNetworkError = false;
             this.startLoadTimeout();
           })
           .onProgressChange((event) => {
@@ -117,18 +110,30 @@ struct Index {
             if (event && event.error && event.error.getErrorCode() !== 0) {
               hilog.warn(DOMAIN, TAG, 'WebView net err: code=%{public}d, info=%{public}s',
                 event.error.getErrorCode(), event.error.getErrorInfo());
+              // 仅主框架的导航错误才触发错误页（过滤子资源错误）
+              if (event.request && event.request.isMainFrame() && !this.checkNetworkAvailable()) {
+                this.isNetworkError = true;
+                this.isError = true;
+                this.isLoading = false;
+                this.clearLoadTimeout();
+              }
             }
           })
           .onHttpErrorReceive((event) => {
             if (event && event.response) {
               const statusCode: number = event.response.getResponseCode();
-              if (statusCode >= 400) {
+              // 仅主框架的 HTTP 错误才触发错误页（过滤子资源如 API、图片等返回的 404/500）
+              const isMainFrame: boolean = event.request ? event.request.isMainFrame() : false;
+              if (statusCode >= 400 && isMainFrame) {
                 hilog.error(DOMAIN, TAG, 'HTTP error: %{public}d', statusCode);
+                // 先检测网络状态，再决定错误类型
+                this.isNetworkError = !this.checkNetworkAvailable();
                 this.isError = true;
                 this.isLoading = false;
                 this.clearLoadTimeout();
               } else {
-                hilog.warn(DOMAIN, TAG, 'HTTP non-error status: %{public}d', statusCode);
+                hilog.warn(DOMAIN, TAG, 'HTTP non-error status: %{public}d, mainFrame=%{public}s',
+                  statusCode, String(isMainFrame));
               }
             }
           })
@@ -237,14 +242,25 @@ struct Index {
 
         if (this.isError) {
           Column() {
-            Text('⚠').fontSize(48).fontColor('#999999').margin({ top: 80, bottom: 16 })
-            Text('页面加载失败').fontSize(18).fontWeight(FontWeight.Medium).fontColor('#333333').margin({ bottom: 8 })
-            Text('请检查网络连接后重试').fontSize(14).fontColor('#999999').margin({ bottom: 24 })
+            Text(this.isNetworkError ? '📡' : '⚠')
+              .fontSize(48)
+              .fontColor('#999999')
+              .margin({ top: 80, bottom: 16 })
+            Text(this.isNetworkError ? '网络未连接' : '页面加载失败')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#333333')
+              .margin({ bottom: 8 })
+            Text(this.isNetworkError ? '请检查设备的网络连接设置' : '请检查网络连接后重试')
+              .fontSize(14)
+              .fontColor('#999999')
+              .margin({ bottom: 24 })
             Button('重新加载')
               .fontSize(16).width(160).height(40).borderRadius(20)
               .backgroundColor('#4A90D9').fontColor(Color.White)
               .onClick(() => {
                 this.isError = false;
+                this.isNetworkError = false;
                 this.refreshPage();
               })
           }
@@ -285,6 +301,8 @@ struct Index {
     this.pageLoadTimer = setTimeout(() => {
       hilog.error(DOMAIN, TAG, 'Page load timeout after %{public}d ms', this.LOAD_TIMEOUT_MS);
       this.isLoading = false;
+      // 超时时检测网络：无网络则为网络错误，有网络则为加载失败
+      this.isNetworkError = !this.checkNetworkAvailable();
       this.isError = true;
     }, this.LOAD_TIMEOUT_MS);
   }
@@ -293,6 +311,33 @@ struct Index {
     if (this.pageLoadTimer !== -1) {
       clearTimeout(this.pageLoadTimer);
       this.pageLoadTimer = -1;
+    }
+  }
+
+  // 检测当前网络是否可用（基于系统网络管理 API）
+  private checkNetworkAvailable(): boolean {
+    try {
+      // 1. 检查是否有默认激活的数据网络
+      if (!connection.hasDefaultNetSync()) {
+        hilog.info(DOMAIN, TAG, 'No default network');
+        return false;
+      }
+      // 2. 获取默认网络句柄
+      const netHandle = connection.getDefaultNetSync();
+      if (!netHandle || netHandle.netId === 0) {
+        hilog.info(DOMAIN, TAG, 'Default netId is 0');
+        return false;
+      }
+      // 3. 验证网络是否通过互联网可达性验证
+      const netCapabilities = connection.getNetCapabilitiesSync(netHandle);
+      const caps: Array<connection.NetCap> = netCapabilities.networkCap || [];
+      const isValidated = caps.includes(connection.NetCap.NET_CAPABILITY_VALIDATED);
+      hilog.info(DOMAIN, TAG, 'Network available: %{public}s', String(isValidated));
+      return isValidated;
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, 'checkNetworkAvailable failed');
+      // 异常时保守认定为无网络
+      return false;
     }
   }
 

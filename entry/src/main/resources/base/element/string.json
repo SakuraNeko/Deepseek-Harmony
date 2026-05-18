@@ -15,6 +15,10 @@
     {
       "name": "internet_reason",
       "value": "需要访问网络以加载DeepSeek AI对话服务"
+    },
+    {
+      "name": "network_info_reason",
+      "value": "用于检测网络连接状态，提供更好的网络异常提示"
     }
   ]
 }

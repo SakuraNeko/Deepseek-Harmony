@@ -1,6 +1,8 @@
 {
   "devices": {
     "general": [
+      "phone",
+      "tablet",
       "2in1"
     ]
   },
