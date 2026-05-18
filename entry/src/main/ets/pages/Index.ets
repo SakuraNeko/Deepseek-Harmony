@@ -4,9 +4,9 @@ import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { promptAction } from '@kit.ArkUI';
+import { promptAction, window } from '@kit.ArkUI';
 
 const DOMAIN = 0x0001;
 const TAG = 'DeepSeekIndex';
@@ -29,8 +29,12 @@ struct Index {
   @StorageProp('currentColorMode') @Watch('onColorModeChange')
   currentColorMode: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
   @State webBgColor: Color = Color.White;
+  // 2in1/PC 设备标识：用于显示拖拽手柄
+  @State isPC: boolean = false;
 
   aboutToAppear(): void {
+    // 检测是否为 2in1/PC 设备
+    this.isPC = deviceInfo.deviceType === '2in1';
     if (this.deepLinkUrl && this.deepLinkUrl !== '') {
       hilog.info(DOMAIN, TAG, 'Will load DeepLink URL: %{public}s', this.deepLinkUrl);
     }
@@ -45,6 +49,18 @@ struct Index {
     } else {
       this.webBgColor = Color.White;
     }
+  }
+
+  // 拖拽指示点颜色（跟随深色/浅色模式）
+  get dragIndicatorColor(): string {
+    return this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+      ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.35)';
+  }
+
+  // 拖拽指示器背景色
+  get dragIndicatorBgColor(): string {
+    return this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+      ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
   }
 
   build() {
@@ -160,6 +176,37 @@ struct Index {
             }
             return false;
           })
+
+        // 2in1/PC 拖拽手柄：隐藏标题栏后，用户可通过拖拽此区域移动窗口
+        if (this.isPC) {
+          Row() {
+            Row().width(3).height(3).borderRadius(1.5).backgroundColor(this.dragIndicatorColor)
+            Row().width(3).height(3).borderRadius(1.5).backgroundColor(this.dragIndicatorColor)
+              .margin({ left: 3, right: 3 })
+            Row().width(3).height(3).borderRadius(1.5).backgroundColor(this.dragIndicatorColor)
+          }
+          .width('100%')
+          .height(24)
+          .justifyContent(FlexAlign.Center)
+          .onTouch((event: TouchEvent) => {
+            if (event.type === TouchType.Down) {
+              try {
+                const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+                window.getLastWindow(ctx).then((win: window.Window) => {
+                  win.startMoving().catch((err: BusinessError) => {
+                    hilog.warn(DOMAIN, TAG, 'startMoving failed: %{public}d', err.code);
+                  });
+                }).catch((err: BusinessError) => {
+                  hilog.warn(DOMAIN, TAG, 'getLastWindow failed');
+                });
+              } catch (err) {
+                hilog.warn(DOMAIN, TAG, 'startMoving exception');
+              }
+            }
+          })
+          .hitTestBehavior(HitTestMode.Block)
+          .zIndex(10)
+        }
 
         if (this.isLoading) {
           Progress({ value: this.loadingProgress, type: ProgressType.Linear })
