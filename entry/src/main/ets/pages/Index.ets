@@ -159,6 +159,18 @@ struct Index {
             if (!event) {
               return false;
             }
+            // 仅在 chat.deepseek.com 域名下弹出上传模态框
+            try {
+              const pageUrl: string = this.controller.getUrl();
+              const isChatDeepSeek: boolean = url.URL.parseURL(pageUrl).hostname === 'chat.deepseek.com';
+              if (!isChatDeepSeek) {
+                event.result.handleFileList([]);
+                return true;
+              }
+            } catch (err) {
+              event.result.handleFileList([]);
+              return true;
+            }
             // 存储 FileSelectorResult，弹出上传方式选择模态框供用户选择
             this.pendingFileListHandler = (fileList: Array<string>) => {
               event.result.handleFileList(fileList);
@@ -302,79 +314,79 @@ struct Index {
                   ? '#FFFFFF' : '#333333')
                 .margin({ bottom: 20 })
 
-              // 拍照
-              Button() {
-                Row() {
-                  Text('📷').fontSize(18).margin({ right: 8 })
-                  Text('拍照').fontSize(16)
+              // 横向排列：拍照 / 相册 / 文件
+              Row() {
+                // 拍照
+                Column() {
+                  Text('📷')
+                    .fontSize(28)
+                    .margin({ bottom: 8 })
+                  Text('拍照')
+                    .fontSize(13)
                 }
+                .width('30%')
+                .aspectRatio(1)
+                .borderRadius(14)
                 .justifyContent(FlexAlign.Center)
-              }
-              .width('80%')
-              .height(48)
-              .borderRadius(24)
-              .backgroundColor('#4A90D9')
-              .margin({ bottom: 12 })
-              .onClick(() => this.handleTakePhoto())
+                .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                  ? '#3A3A3A' : '#F5F5F5')
+                .onClick(() => this.handleTakePhoto())
 
-              // 相册
-              Button() {
-                Row() {
-                  Text('🖼').fontSize(18).margin({ right: 8 })
-                  Text('相册').fontSize(16)
+                // 相册
+                Column() {
+                  Text('🖼')
+                    .fontSize(28)
+                    .margin({ bottom: 8 })
+                  Text('相册')
+                    .fontSize(13)
                 }
+                .width('30%')
+                .aspectRatio(1)
+                .borderRadius(14)
                 .justifyContent(FlexAlign.Center)
-              }
-              .width('80%')
-              .height(48)
-              .borderRadius(24)
-              .backgroundColor('#4A90D9')
-              .margin({ bottom: 12 })
-              .onClick(() => this.handlePickFromAlbum())
+                .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                  ? '#3A3A3A' : '#F5F5F5')
+                .onClick(() => this.handlePickFromAlbum())
 
-              // 文件
-              Button() {
-                Row() {
-                  Text('📁').fontSize(18).margin({ right: 8 })
-                  Text('文件').fontSize(16)
+                // 文件
+                Column() {
+                  Text('📁')
+                    .fontSize(28)
+                    .margin({ bottom: 8 })
+                  Text('文件')
+                    .fontSize(13)
                 }
+                .width('30%')
+                .aspectRatio(1)
+                .borderRadius(14)
                 .justifyContent(FlexAlign.Center)
+                .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                  ? '#3A3A3A' : '#F5F5F5')
+                .onClick(() => this.handlePickFile())
               }
-              .width('80%')
-              .height(48)
-              .borderRadius(24)
-              .backgroundColor('#4A90D9')
+              .width('100%')
+              .justifyContent(FlexAlign.SpaceEvenly)
               .margin({ bottom: 16 })
-              .onClick(() => this.handlePickFile())
 
               Text('ⓘ 仅识别图片中的文字')
                 .fontSize(13)
                 .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
                   ? '#888888' : '#999999')
-                .margin({ bottom: 16 })
-
-              Button('取消')
-                .fontSize(14)
-                .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-                  ? '#AAAAAA' : '#666666')
-                .width('80%')
-                .height(40)
-                .borderRadius(20)
-                .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-                  ? 'rgba(60,60,60,0.9)' : 'rgba(240,240,240,0.9)')
-                .onClick(() => this.dismissUploadModal())
             }
             .width('85%')
+            .constraintSize({ maxWidth: 360 })
             .padding(24)
             .borderRadius(16)
             .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
               ? '#2A2A2A' : '#FFFFFF')
             .shadow({ radius: 24, color: 'rgba(0,0,0,0.3)', offsetY: 8 })
+            .onClick(() => {})
           }
           .width('100%')
           .height('100%')
           .justifyContent(FlexAlign.Center)
           .backgroundColor('rgba(0,0,0,0.5)')
+          .onClick(() => this.dismissUploadModal())
           .zIndex(100)
         }
       }
@@ -718,7 +730,6 @@ struct Index {
 
   // 拍照：使用 CameraPicker 调用系统相机
   private async handleTakePhoto(): Promise<void> {
-    this.showUploadModal = false;
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const pathDir: string = context.filesDir;
@@ -736,24 +747,17 @@ struct Index {
         if (this.pendingFileListHandler) {
           this.pendingFileListHandler([result.resultUri]);
         }
-      } else {
-        if (this.pendingFileListHandler) {
-          this.pendingFileListHandler([]);
-        }
+        this.showUploadModal = false;
+        this.pendingFileListHandler = null;
       }
+      // 用户取消拍照时不关闭模态框，不通知 web 端
     } catch (err) {
       hilog.warn(DOMAIN, TAG, 'CameraPicker cancelled or failed');
-      if (this.pendingFileListHandler) {
-        this.pendingFileListHandler([]);
-      }
-    } finally {
-      this.pendingFileListHandler = null;
     }
   }
 
   // 相册：使用 PhotoViewPicker 安全选择图片
   private handlePickFromAlbum(): void {
-    this.showUploadModal = false;
     try {
       const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
       photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
@@ -763,29 +767,20 @@ struct Index {
         if (photoResult.photoUris && photoResult.photoUris.length > 0
           && this.pendingFileListHandler) {
           this.pendingFileListHandler(photoResult.photoUris);
-        } else if (this.pendingFileListHandler) {
-          this.pendingFileListHandler([]);
+          this.showUploadModal = false;
+          this.pendingFileListHandler = null;
         }
-        this.pendingFileListHandler = null;
+        // 空结果（含取消）时保留模态框，不通知 web 端
       }).catch((err: BusinessError) => {
         hilog.error(DOMAIN, TAG, 'PhotoPicker err: %{public}s', err.message);
-        if (this.pendingFileListHandler) {
-          this.pendingFileListHandler([]);
-        }
-        this.pendingFileListHandler = null;
       });
     } catch (err) {
       hilog.warn(DOMAIN, TAG, 'PhotoPicker failed');
-      if (this.pendingFileListHandler) {
-        this.pendingFileListHandler([]);
-      }
-      this.pendingFileListHandler = null;
     }
   }
 
   // 文件：使用 DocumentViewPicker 选择通用文件
   private handlePickFile(): void {
-    this.showUploadModal = false;
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const docOptions = new picker.DocumentSelectOptions();
@@ -794,23 +789,15 @@ struct Index {
       docPicker.select(docOptions).then((docResult) => {
         if (docResult && docResult.length > 0 && this.pendingFileListHandler) {
           this.pendingFileListHandler(docResult);
-        } else if (this.pendingFileListHandler) {
-          this.pendingFileListHandler([]);
+          this.showUploadModal = false;
+          this.pendingFileListHandler = null;
         }
-        this.pendingFileListHandler = null;
+        // 空结果（含取消）时保留模态框，不通知 web 端
       }).catch((err: BusinessError) => {
         hilog.error(DOMAIN, TAG, 'DocPicker err: %{public}s', err.message);
-        if (this.pendingFileListHandler) {
-          this.pendingFileListHandler([]);
-        }
-        this.pendingFileListHandler = null;
       });
     } catch (err) {
       hilog.warn(DOMAIN, TAG, 'DocPicker failed');
-      if (this.pendingFileListHandler) {
-        this.pendingFileListHandler([]);
-      }
-      this.pendingFileListHandler = null;
     }
   }
 }
