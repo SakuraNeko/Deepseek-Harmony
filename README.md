@@ -129,7 +129,7 @@ setWindowBackgroundColor()     ← 与 DeepSeek 官网颜色一致
 
 - **Bundle Name**: `dev.sakuraneko.DeepSeek.OH`
 - **Version**: 1.0.0 (1000000)
-- **SDK**: HarmonyOS API 12+
+- **SDK**: HarmonyOS API 23+
 
 ## License
 
