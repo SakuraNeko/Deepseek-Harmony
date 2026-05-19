@@ -7,7 +7,7 @@ import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { connection } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { promptAction, window } from '@kit.ArkUI';
+import { window } from '@kit.ArkUI';
 import { url } from '@kit.ArkTS';
 
 const DOMAIN = 0x0001;
@@ -27,7 +27,6 @@ struct Index {
   private pageLoadTimer: number = -1;
   private readonly LOAD_TIMEOUT_MS: number = 15000;
   downloadCachePath: string = '';
-  isDownloading: boolean = false;
   // 深色模式适配
   @StorageProp('currentColorMode') @Watch('onColorModeChange')
   currentColorMode: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
@@ -194,8 +193,8 @@ struct Index {
             // share://?url=... 由 JS 注入触发，直接唤起系统分享
             const shareScheme: string = 'share://?url=';
             if (requestUrl.startsWith(shareScheme)) {
-              const url: string = decodeURIComponent(requestUrl.substring(shareScheme.length));
-              this.triggerShare(url);
+              const shareUrl: string = decodeURIComponent(requestUrl.substring(shareScheme.length));
+              this.triggerShare(shareUrl);
               return true;
             }
             if (requestUrl.startsWith('intent://share')) {
@@ -230,7 +229,7 @@ struct Index {
                   win.startMoving().catch((err: BusinessError) => {
                     hilog.warn(DOMAIN, TAG, 'startMoving failed: %{public}d', err.code);
                   });
-                }).catch((err: BusinessError) => {
+                }).catch(() => {
                   hilog.warn(DOMAIN, TAG, 'getLastWindow failed');
                 });
               } catch (err) {
@@ -484,7 +483,7 @@ struct Index {
       const parsed = url.URL.parseURL(requestUrl);
       const pathname: string = (parsed.pathname || '').toLowerCase();
       return downloadExtensions.some(ext => pathname.endsWith(ext));
-    } catch (e) {
+    } catch (_e) {
       return false;
     }
   }
@@ -524,7 +523,7 @@ struct Index {
       };
       context.startAbility(want).catch((err: BusinessError) => {
         hilog.error(DOMAIN, TAG, 'Failed to open system browser: %{public}s', err.message);
-        promptAction.showToast({ message: '无法打开外部链接', duration: 2000 });
+        this.getUIContext().getPromptAction().showToast({ message: '无法打开外部链接', duration: 2000 });
       });
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'openInSystemBrowser error');
@@ -554,7 +553,6 @@ struct Index {
       this.delegate.onBeforeDownload((webDownloadItem: webview.WebDownloadItem) => {
         const fileName: string = webDownloadItem.getSuggestedFileName();
         hilog.info(DOMAIN, TAG, 'Download start: %{public}s', fileName);
-        this.isDownloading = true;
         // 下载到沙箱 web 缓存目录
         this.downloadCachePath = this.getUIContext().getHostContext()!.cacheDir + '/web/' + fileName;
         webDownloadItem.start(this.downloadCachePath);
@@ -566,9 +564,8 @@ struct Index {
       });
 
       this.delegate.onDownloadFinish((webDownloadItem: webview.WebDownloadItem) => {
-        this.isDownloading = false;
         hilog.info(DOMAIN, TAG, 'Download finish: %{public}s', webDownloadItem.getGuid());
-        promptAction.showToast({
+        this.getUIContext().getPromptAction().showToast({
           message: '下载完成',
           duration: 2000
         });
@@ -577,10 +574,9 @@ struct Index {
       });
 
       this.delegate.onDownloadFailed((webDownloadItem: webview.WebDownloadItem) => {
-        this.isDownloading = false;
         hilog.error(DOMAIN, TAG, 'Download failed: code=%{public}d',
           webDownloadItem.getLastErrorCode());
-        promptAction.showToast({
+        this.getUIContext().getPromptAction().showToast({
           message: '下载失败',
           duration: 2000
         });
@@ -619,7 +615,7 @@ struct Index {
           srcFile = fs.openSync(srcPath, fs.OpenMode.READ_ONLY);
           dstFile = fs.openSync(pubFilePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
           fs.copyFileSync(srcFile.fd, dstFile.fd);
-          promptAction.showToast({
+          this.getUIContext().getPromptAction().showToast({
             message: '已保存到下载目录',
             duration: 2000
           });
