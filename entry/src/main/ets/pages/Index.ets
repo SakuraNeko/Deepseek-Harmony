@@ -1,5 +1,5 @@
 import { webview } from '@kit.ArkWeb';
-import { common, ConfigurationConstant } from '@kit.AbilityKit';
+import { common, ConfigurationConstant, Want } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
@@ -8,6 +8,7 @@ import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { connection } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { promptAction, window } from '@kit.ArkUI';
+import { url } from '@kit.ArkTS';
 
 const DOMAIN = 0x0001;
 const TAG = 'DeepSeekIndex';
@@ -33,6 +34,8 @@ struct Index {
   @State webBgColor: Color = Color.White;
   // 2in1/PC 设备标识：用于显示拖拽手柄
   @State isPC: boolean = false;
+  // 返回按钮：2in1 设备上访问非 DeepSeek 域名且有回退历史时显示
+  @State showBackButton: boolean = false;
 
   aboutToAppear(): void {
     // 检测是否为 2in1/PC 设备
@@ -105,6 +108,7 @@ struct Index {
             this.clearLoadTimeout();
             // 每次页面加载完成后注入剪贴板拦截脚本
             this.injectShareInterceptor();
+            this.updateBackButtonState();
           })
           .onErrorReceive((event) => {
             if (event && event.error && event.error.getErrorCode() !== 0) {
@@ -198,6 +202,12 @@ struct Index {
               this.shareCurrentPage();
               return true;
             }
+            // 非 DeepSeek 域名的页面跳转：仅拦截主框架导航，放行子请求（下载/资源等）
+            if (!this.isDeepSeekDomain(requestUrl) && event.data.isMainFrame()
+              && !this.isDownloadUrl(requestUrl)) {
+              this.openInSystemBrowser(requestUrl);
+              return true;
+            }
             return false;
           })
 
@@ -238,6 +248,38 @@ struct Index {
             .height(3)
             .color('#4A90D9')
             .backgroundColor('#00FFFFFF')
+        }
+
+        // 2in1 返回按钮：非 DeepSeek 域名且有回退历史时，左上角显示方形返回按钮
+        if (this.showBackButton) {
+          Button() {
+            Text('←')
+              .fontSize(20)
+              .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                ? '#FFFFFF' : '#333333')
+          }
+          .width(36)
+          .height(36)
+          .borderRadius(8)
+          .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+            ? 'rgba(40, 40, 40, 0.9)' : 'rgba(255, 255, 255, 0.9)')
+          .position({ x: 36, y: 36 })
+          .shadow({
+            radius: 8,
+            color: this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+              ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.1)',
+            offsetX: 0,
+            offsetY: 2
+          })
+          .onClick(() => {
+            try {
+              this.controller.backward();
+              this.updateBackButtonState();
+            } catch (err) {
+              hilog.error(DOMAIN, TAG, 'backward failed');
+            }
+          })
+          .zIndex(12)
         }
 
         if (this.isError) {
@@ -288,11 +330,13 @@ struct Index {
     try {
       if (this.controller.accessBackward()) {
         this.controller.backward();
+        this.updateBackButtonState();
         return true;
       }
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'onBackPress failed');
     }
+    this.showBackButton = false;
     return false;
   }
 
@@ -409,6 +453,81 @@ struct Index {
       this.triggerShare(currentUrl);
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'Share error');
+    }
+  }
+
+  // 判断 URL 是否属于 DeepSeek 域名（chat.deepseek.com 及其子域名）
+  private isDeepSeekDomain(requestUrl: string): boolean {
+    try {
+      const parsed = url.URL.parseURL(requestUrl);
+      const hostname: string = parsed.hostname;
+      return hostname === 'chat.deepseek.com' || hostname.endsWith('.deepseek.com');
+    } catch (e) {
+      // URL 解析失败时保守处理，允许在 WebView 内加载
+      return true;
+    }
+  }
+
+  // 判断 URL 是否为下载链接（根据常见文件扩展名）
+  private isDownloadUrl(requestUrl: string): boolean {
+    const downloadExtensions = [
+      '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz',
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+      '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp',
+      '.mp3', '.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv',
+      '.exe', '.msi', '.apk', '.dmg', '.deb', '.rpm',
+      '.csv', '.json', '.xml', '.sql', '.db',
+      '.iso', '.img', '.bin',
+      '.txt', '.md', '.log'
+    ];
+    try {
+      const parsed = url.URL.parseURL(requestUrl);
+      const pathname: string = (parsed.pathname || '').toLowerCase();
+      return downloadExtensions.some(ext => pathname.endsWith(ext));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 更新 2in1 返回按钮显示状态：仅 PC 设备 + 有回退历史 + 当前页非 chat.deepseek.com 时显示
+  private updateBackButtonState(): void {
+    if (!this.isPC) {
+      this.showBackButton = false;
+      return;
+    }
+    try {
+      const hasHistory: boolean = this.controller.accessBackward();
+      if (!hasHistory) {
+        this.showBackButton = false;
+        return;
+      }
+      const pageUrl: string = this.controller.getUrl();
+      if (pageUrl === '') {
+        this.showBackButton = false;
+        return;
+      }
+      const isChatDeepSeek: boolean = url.URL.parseURL(pageUrl).hostname === 'chat.deepseek.com';
+      this.showBackButton = !isChatDeepSeek;
+    } catch (err) {
+      this.showBackButton = false;
+    }
+  }
+
+  // 调用系统浏览器打开外部链接
+  private openInSystemBrowser(openUrl: string): void {
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const want: Want = {
+        action: 'ohos.want.action.viewData',
+        entities: ['entity.system.browsable'],
+        uri: openUrl
+      };
+      context.startAbility(want).catch((err: BusinessError) => {
+        hilog.error(DOMAIN, TAG, 'Failed to open system browser: %{public}s', err.message);
+        promptAction.showToast({ message: '无法打开外部链接', duration: 2000 });
+      });
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, 'openInSystemBrowser error');
     }
   }
 
