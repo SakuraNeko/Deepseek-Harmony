@@ -9,6 +9,8 @@ import { connection } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { url } from '@kit.ArkTS';
+import { camera, cameraPicker } from '@kit.CameraKit';
+import { ALLOWED_UPLOAD_EXTENSIONS } from '../common/AllowedFileExtensions';
 
 const DOMAIN = 0x0001;
 const TAG = 'DeepSeekIndex';
@@ -35,6 +37,9 @@ struct Index {
   @State isPC: boolean = false;
   // 返回按钮：2in1 设备上访问非 DeepSeek 域名且有回退历史时显示
   @State showBackButton: boolean = false;
+  // 上传方式选择模态框
+  @State showUploadModal: boolean = false;
+  private pendingFileListHandler: ((fileList: Array<string>) => void) | null = null;
 
   aboutToAppear(): void {
     // 检测是否为 2in1/PC 设备
@@ -154,35 +159,11 @@ struct Index {
             if (!event) {
               return false;
             }
-            const acceptTypes: Array<string> = event.fileSelector.getAcceptType();
-            const isImageOnly: boolean = acceptTypes.length > 0 &&
-              acceptTypes.every((type: string): boolean => type.startsWith('image/'));
-
-            if (isImageOnly) {
-              const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
-              photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_VIDEO_TYPE;
-              photoSelectOptions.maxSelectNumber = 5;
-              const photoPicker = new photoAccessHelper.PhotoViewPicker();
-              photoPicker.select(photoSelectOptions).then((photoResult) => {
-                if (photoResult.photoUris && photoResult.photoUris.length > 0) {
-                  event.result.handleFileList(photoResult.photoUris);
-                }
-              }).catch((err: BusinessError) => {
-                hilog.error(DOMAIN, TAG, 'PhotoPicker err: %{public}s', err.message);
-                event.result.handleFileList([]);
-              });
-            } else {
-              const docOptions = new picker.DocumentSelectOptions();
-              const docPicker = new picker.DocumentViewPicker();
-              docPicker.select(docOptions).then((docResult) => {
-                if (docResult && docResult.length > 0) {
-                  event.result.handleFileList(docResult);
-                }
-              }).catch((err: BusinessError) => {
-                hilog.error(DOMAIN, TAG, 'DocPicker err: %{public}s', err.message);
-                event.result.handleFileList([]);
-              });
-            }
+            // 存储 FileSelectorResult，弹出上传方式选择模态框供用户选择
+            this.pendingFileListHandler = (fileList: Array<string>) => {
+              event.result.handleFileList(fileList);
+            };
+            this.showUploadModal = true;
             return true;
           })
           .onLoadIntercept((event) => {
@@ -308,6 +289,93 @@ struct Index {
           .width('100%').height('100%')
           .justifyContent(FlexAlign.Center)
           .backgroundColor(this.webBgColor)
+        }
+
+        // 上传方式选择模态框
+        if (this.showUploadModal) {
+          Column() {
+            Column() {
+              Text('选择上传方式')
+                .fontSize(18)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                  ? '#FFFFFF' : '#333333')
+                .margin({ bottom: 20 })
+
+              // 拍照
+              Button() {
+                Row() {
+                  Text('📷').fontSize(18).margin({ right: 8 })
+                  Text('拍照').fontSize(16)
+                }
+                .justifyContent(FlexAlign.Center)
+              }
+              .width('80%')
+              .height(48)
+              .borderRadius(24)
+              .backgroundColor('#4A90D9')
+              .margin({ bottom: 12 })
+              .onClick(() => this.handleTakePhoto())
+
+              // 相册
+              Button() {
+                Row() {
+                  Text('🖼').fontSize(18).margin({ right: 8 })
+                  Text('相册').fontSize(16)
+                }
+                .justifyContent(FlexAlign.Center)
+              }
+              .width('80%')
+              .height(48)
+              .borderRadius(24)
+              .backgroundColor('#4A90D9')
+              .margin({ bottom: 12 })
+              .onClick(() => this.handlePickFromAlbum())
+
+              // 文件
+              Button() {
+                Row() {
+                  Text('📁').fontSize(18).margin({ right: 8 })
+                  Text('文件').fontSize(16)
+                }
+                .justifyContent(FlexAlign.Center)
+              }
+              .width('80%')
+              .height(48)
+              .borderRadius(24)
+              .backgroundColor('#4A90D9')
+              .margin({ bottom: 16 })
+              .onClick(() => this.handlePickFile())
+
+              Text('ⓘ 仅识别图片中的文字')
+                .fontSize(13)
+                .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                  ? '#888888' : '#999999')
+                .margin({ bottom: 16 })
+
+              Button('取消')
+                .fontSize(14)
+                .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                  ? '#AAAAAA' : '#666666')
+                .width('80%')
+                .height(40)
+                .borderRadius(20)
+                .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                  ? 'rgba(60,60,60,0.9)' : 'rgba(240,240,240,0.9)')
+                .onClick(() => this.dismissUploadModal())
+            }
+            .width('85%')
+            .padding(24)
+            .borderRadius(16)
+            .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+              ? '#2A2A2A' : '#FFFFFF')
+            .shadow({ radius: 24, color: 'rgba(0,0,0,0.3)', offsetY: 8 })
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+          .backgroundColor('rgba(0,0,0,0.5)')
+          .zIndex(100)
         }
       }
       .width('100%')
@@ -636,6 +704,113 @@ struct Index {
       });
     } catch (err) {
       hilog.info(DOMAIN, TAG, 'Save dialog not supported on this device');
+    }
+  }
+
+  // 关闭上传模态框，若用户未选择则回传空列表
+  private dismissUploadModal(): void {
+    this.showUploadModal = false;
+    if (this.pendingFileListHandler) {
+      this.pendingFileListHandler([]);
+      this.pendingFileListHandler = null;
+    }
+  }
+
+  // 拍照：使用 CameraPicker 调用系统相机
+  private async handleTakePhoto(): Promise<void> {
+    this.showUploadModal = false;
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const pathDir: string = context.filesDir;
+      const fileName: string = `${new Date().getTime()}.jpg`;
+      const filePath: string = pathDir + '/' + fileName;
+      fs.createRandomAccessFileSync(filePath, fs.OpenMode.CREATE);
+      const saveUri: string = fileUri.getUriFromPath(filePath);
+      const pickerProfile: cameraPicker.PickerProfile = {
+        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK,
+        saveUri: saveUri
+      };
+      const result: cameraPicker.PickerResult = await cameraPicker.pick(
+        context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
+      if (result.resultCode === 0 && result.resultUri) {
+        if (this.pendingFileListHandler) {
+          this.pendingFileListHandler([result.resultUri]);
+        }
+      } else {
+        if (this.pendingFileListHandler) {
+          this.pendingFileListHandler([]);
+        }
+      }
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, 'CameraPicker cancelled or failed');
+      if (this.pendingFileListHandler) {
+        this.pendingFileListHandler([]);
+      }
+    } finally {
+      this.pendingFileListHandler = null;
+    }
+  }
+
+  // 相册：使用 PhotoViewPicker 安全选择图片
+  private handlePickFromAlbum(): void {
+    this.showUploadModal = false;
+    try {
+      const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+      photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
+      photoSelectOptions.maxSelectNumber = 5;
+      const photoPicker = new photoAccessHelper.PhotoViewPicker();
+      photoPicker.select(photoSelectOptions).then((photoResult) => {
+        if (photoResult.photoUris && photoResult.photoUris.length > 0
+          && this.pendingFileListHandler) {
+          this.pendingFileListHandler(photoResult.photoUris);
+        } else if (this.pendingFileListHandler) {
+          this.pendingFileListHandler([]);
+        }
+        this.pendingFileListHandler = null;
+      }).catch((err: BusinessError) => {
+        hilog.error(DOMAIN, TAG, 'PhotoPicker err: %{public}s', err.message);
+        if (this.pendingFileListHandler) {
+          this.pendingFileListHandler([]);
+        }
+        this.pendingFileListHandler = null;
+      });
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, 'PhotoPicker failed');
+      if (this.pendingFileListHandler) {
+        this.pendingFileListHandler([]);
+      }
+      this.pendingFileListHandler = null;
+    }
+  }
+
+  // 文件：使用 DocumentViewPicker 选择通用文件
+  private handlePickFile(): void {
+    this.showUploadModal = false;
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const docOptions = new picker.DocumentSelectOptions();
+      docOptions.fileSuffixFilters = ALLOWED_UPLOAD_EXTENSIONS;
+      const docPicker = new picker.DocumentViewPicker(context);
+      docPicker.select(docOptions).then((docResult) => {
+        if (docResult && docResult.length > 0 && this.pendingFileListHandler) {
+          this.pendingFileListHandler(docResult);
+        } else if (this.pendingFileListHandler) {
+          this.pendingFileListHandler([]);
+        }
+        this.pendingFileListHandler = null;
+      }).catch((err: BusinessError) => {
+        hilog.error(DOMAIN, TAG, 'DocPicker err: %{public}s', err.message);
+        if (this.pendingFileListHandler) {
+          this.pendingFileListHandler([]);
+        }
+        this.pendingFileListHandler = null;
+      });
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, 'DocPicker failed');
+      if (this.pendingFileListHandler) {
+        this.pendingFileListHandler([]);
+      }
+      this.pendingFileListHandler = null;
     }
   }
 }
