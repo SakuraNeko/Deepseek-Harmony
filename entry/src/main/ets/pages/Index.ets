@@ -320,7 +320,7 @@ struct Index {
               Row() {
                 // 拍照
                 Column() {
-                  Text('📷')
+                  Text('󰑛')
                     .fontSize(28)
                     .margin({ bottom: 8 })
                   Text('拍照')
@@ -336,7 +336,7 @@ struct Index {
 
                 // 相册
                 Column() {
-                  Text('🖼')
+                  Text('󰓥')
                     .fontSize(28)
                     .margin({ bottom: 8 })
                   Text('相册')
@@ -352,7 +352,7 @@ struct Index {
 
                 // 文件
                 Column() {
-                  Text('📁')
+                  Text('󰃅')
                     .fontSize(28)
                     .margin({ bottom: 8 })
                   Text('文件')
