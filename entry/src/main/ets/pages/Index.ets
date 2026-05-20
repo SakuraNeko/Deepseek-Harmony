@@ -277,7 +277,7 @@ struct Index {
 
         if (this.isError) {
           Column() {
-            Text(this.isNetworkError ? '📡' : '⚠')
+            Text(this.isNetworkError ? '󰚑' : '󰊠')
               .fontSize(48)
               .fontColor('#999999')
               .margin({ top: 80, bottom: 16 })
