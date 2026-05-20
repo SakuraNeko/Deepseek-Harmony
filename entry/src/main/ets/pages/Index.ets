@@ -23,7 +23,7 @@ struct Index {
   @State isLoading: boolean = true;
   @State isError: boolean = false;
   @State isNetworkError: boolean = false;
-  @StorageLink('deepLinkUrl') deepLinkUrl: string = '';
+  @StorageLink('deepLinkUrl') @Watch('onDeepLinkChange') deepLinkUrl: string = '';
   controller: webview.WebviewController = new webview.WebviewController();
   delegate: webview.WebDownloadDelegate = new webview.WebDownloadDelegate();
   private pageLoadTimer: number = -1;
@@ -402,6 +402,15 @@ struct Index {
 
   onPageShow(): void {
     if (this.deepLinkUrl && this.deepLinkUrl !== '') {
+      this.navigateToUrl(this.deepLinkUrl);
+      AppStorage.set<string>('deepLinkUrl', '');
+    }
+  }
+
+  // 响应热启动时 onNewWant 设置的 deepLinkUrl 变化（onPageShow 仅在冷/温启动触发）
+  onDeepLinkChange(): void {
+    if (this.deepLinkUrl && this.deepLinkUrl !== '') {
+      hilog.info(DOMAIN, TAG, 'DeepLink change detected: %{public}s', this.deepLinkUrl);
       this.navigateToUrl(this.deepLinkUrl);
       AppStorage.set<string>('deepLinkUrl', '');
     }
