@@ -252,6 +252,7 @@ struct Index {
           }
           .width(36)
           .height(36)
+          .type(ButtonType.Normal)
           .borderRadius(8)
           .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
             ? 'rgba(40, 40, 40, 0.9)' : 'rgba(255, 255, 255, 0.9)')
@@ -290,6 +291,7 @@ struct Index {
               .fontColor('#999999')
               .margin({ bottom: 24 })
             Button('重新加载')
+              .type(ButtonType.Normal)
               .fontSize(16).width(160).height(40).borderRadius(20)
               .backgroundColor('#4A90D9').fontColor(Color.White)
               .onClick(() => {

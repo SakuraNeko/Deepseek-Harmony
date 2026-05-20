@@ -84,12 +84,14 @@ export default class EntryAbility extends UIAbility {
           hilog.warn(DOMAIN, TAG, 'setWindowBackgroundColor not supported');
         }
 
-        // 手机/平板：窗口全屏布局，内容延伸至状态栏后方
-        mainWindowClass.setWindowLayoutFullScreen(true).then(() => {
-          hilog.info(DOMAIN, TAG, 'Immersive full-screen enabled');
-        }).catch((err: BusinessError) => {
-          hilog.warn(DOMAIN, TAG, 'setWindowLayoutFullScreen not supported: %{public}d', err.code);
-        });
+        // 手机/平板：窗口沉浸式布局，内容延伸至状态栏后方
+        // setWindowLayoutFullScreen 已废弃，使用 setImmersiveModeEnabledState 替代
+        try {
+          mainWindowClass.setImmersiveModeEnabledState(true);
+          hilog.info(DOMAIN, TAG, 'Immersive mode enabled');
+        } catch (err) {
+          hilog.warn(DOMAIN, TAG, 'setImmersiveModeEnabledState not supported');
+        }
 
         // 2in1 / PC：隐藏系统标题栏（logo + 应用名称），内容区接管整个窗口
         // 实现标题栏沉浸：标题栏区域背景色与 DeepSeek 官网顶部颜色一致
