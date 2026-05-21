@@ -104,7 +104,7 @@ hdc shell hidumper -s AppDomainVerifyManager
 | 字段 | 值                            |
 |------|------------------------------|
 | Bundle Name | `dev.sakuraneko.DeepSeek.OH` |
-| Version | 1.1.2 (1001020)              |
+| Version | 1.1.3 (1001030)              |
 | SDK | HarmonyOS API 23+            |
 
 ## License
