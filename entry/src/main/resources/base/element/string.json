@@ -2,7 +2,7 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "DeepSeek AI Assistant for HarmonyOS"
+      "value": "DeepSeek AI助手鸿蒙版"
     },
     {
       "name": "EntryAbility_desc",
@@ -19,6 +19,70 @@
     {
       "name": "network_info_reason",
       "value": "用于检测网络连接状态，提供更好的网络异常提示"
+    },
+    {
+      "name": "error_network_title",
+      "value": "网络未连接"
+    },
+    {
+      "name": "error_load_title",
+      "value": "页面加载失败"
+    },
+    {
+      "name": "error_network_desc",
+      "value": "请检查设备的网络连接设置"
+    },
+    {
+      "name": "error_load_desc",
+      "value": "请检查网络连接后重试"
+    },
+    {
+      "name": "retry_button",
+      "value": "重新加载"
+    },
+    {
+      "name": "upload_modal_title",
+      "value": "选择上传方式"
+    },
+    {
+      "name": "upload_photo",
+      "value": "拍照"
+    },
+    {
+      "name": "upload_album",
+      "value": "相册"
+    },
+    {
+      "name": "upload_file",
+      "value": "文件"
+    },
+    {
+      "name": "upload_hint",
+      "value": "ⓘ 仅识别图片中的文字"
+    },
+    {
+      "name": "share_description",
+      "value": "来自DeepSeek的分享内容"
+    },
+    {
+      "name": "share_content_prefix",
+      "value": "DeepSeek分享"
+    },
+    {
+      "name": "toast_external_link",
+      "value": "无法打开外部链接"
+    },
+    {
+      "name": "toast_download_done",
+      "value": "下载完成"
+    },
+    {
+      "name": "toast_download_fail",
+      "value": "下载失败"
+    },
+    {
+      "name": "toast_save_done",
+      "value": "已保存到下载目录"
     }
   ]
 }

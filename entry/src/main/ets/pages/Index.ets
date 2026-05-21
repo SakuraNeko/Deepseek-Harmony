@@ -5,6 +5,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
+import { resourceManager } from '@kit.LocalizationKit';
 import { connection } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
@@ -286,18 +287,18 @@ struct Index {
               .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
                 ? '#BBBBBB' : '#999999')
               .margin({ top: 80, bottom: 16 })
-            Text(this.isNetworkError ? '网络未连接' : '页面加载失败')
+            Text(this.isNetworkError ? $r('app.string.error_network_title') : $r('app.string.error_load_title'))
               .fontSize(18)
               .fontWeight(FontWeight.Medium)
               .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
                 ? '#FFFFFF' : '#333333')
               .margin({ bottom: 8 })
-            Text(this.isNetworkError ? '请检查设备的网络连接设置' : '请检查网络连接后重试')
+            Text(this.isNetworkError ? $r('app.string.error_network_desc') : $r('app.string.error_load_desc'))
               .fontSize(14)
               .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
                 ? '#BBBBBB' : '#999999')
               .margin({ bottom: 24 })
-            Button('重新加载')
+            Button($r('app.string.retry_button'))
               .type(ButtonType.Normal)
               .fontSize(16).width(160).height(40).borderRadius(20)
               .backgroundColor('#4A90D9').fontColor(Color.White)
@@ -316,7 +317,7 @@ struct Index {
         if (this.showUploadModal) {
           Column() {
             Column() {
-              Text('选择上传方式')
+              Text($r('app.string.upload_modal_title'))
                 .fontSize(18)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
@@ -330,7 +331,7 @@ struct Index {
                   Text('󰑛')
                     .fontSize(28)
                     .margin({ bottom: 8 })
-                  Text('拍照')
+                  Text($r('app.string.upload_photo'))
                     .fontSize(13)
                 }
                 .width('30%')
@@ -346,7 +347,7 @@ struct Index {
                   Text('󰓥')
                     .fontSize(28)
                     .margin({ bottom: 8 })
-                  Text('相册')
+                  Text($r('app.string.upload_album'))
                     .fontSize(13)
                 }
                 .width('30%')
@@ -362,7 +363,7 @@ struct Index {
                   Text('󰃅')
                     .fontSize(28)
                     .margin({ bottom: 8 })
-                  Text('文件')
+                  Text($r('app.string.upload_file'))
                     .fontSize(13)
                 }
                 .width('30%')
@@ -377,7 +378,7 @@ struct Index {
               .justifyContent(FlexAlign.SpaceEvenly)
               .margin({ bottom: 16 })
 
-              Text('ⓘ 仅识别图片中的文字')
+              Text($r('app.string.upload_hint'))
                 .fontSize(13)
                 .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
                   ? '#888888' : '#999999')
@@ -516,15 +517,18 @@ struct Index {
   private triggerShare(url: string): void {
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const resMgr: resourceManager.ResourceManager = context.resourceManager;
+      const description: string = resMgr.getStringSync($r('app.string.share_description'));
+      const contentPrefix: string = resMgr.getStringSync($r('app.string.share_content_prefix'));
       const shareData = new systemShare.SharedData({
         utd: utd.UniformDataType.HYPERLINK,
         content: url,
         title: 'DeepSeek',
-        description: '来自DeepSeek的分享内容'
+        description: description
       });
       shareData.addRecord({
         utd: utd.UniformDataType.PLAIN_TEXT,
-        content: 'DeepSeek分享:\n' + url
+        content: contentPrefix + ':\n' + url
       });
       const shareController = new systemShare.ShareController(shareData);
       shareController.on('dismiss', () => {
@@ -627,7 +631,7 @@ struct Index {
       };
       context.startAbility(want).catch((err: BusinessError) => {
         hilog.error(DOMAIN, TAG, 'Failed to open system browser: %{public}s', err.message);
-        this.getUIContext().getPromptAction().showToast({ message: '无法打开外部链接', duration: 2000 });
+        this.getUIContext().getPromptAction().showToast({ message: $r('app.string.toast_external_link'), duration: 2000 });
       });
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'openInSystemBrowser error');
@@ -680,7 +684,7 @@ struct Index {
         const savePath: string = downloadPathMap[guid];
         hilog.info(DOMAIN, TAG, 'Download finish: %{public}s', guid);
         this.getUIContext().getPromptAction().showToast({
-          message: '下载完成',
+          message: $r('app.string.toast_download_done'),
           duration: 2000
         });
         if (savePath) {
@@ -696,7 +700,7 @@ struct Index {
         // 清理失败下载的路径映射
         downloadPathMap[guid] = '';
         this.getUIContext().getPromptAction().showToast({
-          message: '下载失败',
+          message: $r('app.string.toast_download_fail'),
           duration: 2000
         });
       });
@@ -735,7 +739,7 @@ struct Index {
           dstFile = fs.openSync(pubFilePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
           fs.copyFileSync(srcFile.fd, dstFile.fd);
           this.getUIContext().getPromptAction().showToast({
-            message: '已保存到下载目录',
+            message: $r('app.string.toast_save_done'),
             duration: 2000
           });
         } catch (e) {
