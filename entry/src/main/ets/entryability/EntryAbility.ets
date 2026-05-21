@@ -4,6 +4,7 @@ import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { url } from '@kit.ArkTS';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { i18n } from '@kit.LocalizationKit';
 
 const DOMAIN = 0x0001;
 const TAG = 'DeepSeekEntryAbility';
@@ -33,6 +34,15 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<ConfigurationConstant.ColorMode>('currentColorMode', this.context.config.colorMode);
     hilog.info(DOMAIN, TAG, 'Initial colorMode: %{public}d', this.context.config.colorMode);
 
+    // 将当前系统语言存入 AppStorage，供 WebView 语言适配
+    try {
+      const systemLanguage: string = i18n.System.getSystemLanguage();
+      AppStorage.setOrCreate<string>('systemLanguage', systemLanguage);
+      hilog.info(DOMAIN, TAG, 'Initial systemLanguage: %{public}s', systemLanguage);
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, 'Failed to get system language');
+    }
+
     // 处理Deep Link跳转（冷启动）
     this.handleDeepLink(want);
 
@@ -59,6 +69,16 @@ export default class EntryAbility extends UIAbility {
       AppStorage.setOrCreate<ConfigurationConstant.ColorMode>('currentColorMode', newColorMode);
       hilog.info(DOMAIN, TAG, 'ColorMode changed: %{public}d -> %{public}d', currentColorMode, newColorMode);
       this.applyStatusBarStyle();
+    }
+
+    // 监听系统语言变化，同步更新 AppStorage
+    const newLanguage: string | undefined = newConfig.language;
+    if (newLanguage !== undefined) {
+      const currentLanguage: string | undefined = AppStorage.get('systemLanguage');
+      if (currentLanguage !== newLanguage) {
+        AppStorage.setOrCreate<string>('systemLanguage', newLanguage);
+        hilog.info(DOMAIN, TAG, 'Language changed: %{public}s -> %{public}s', currentLanguage, newLanguage);
+      }
     }
   }
 

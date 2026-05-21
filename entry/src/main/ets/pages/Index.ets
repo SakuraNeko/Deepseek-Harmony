@@ -5,7 +5,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
-import { resourceManager } from '@kit.LocalizationKit';
+import { resourceManager, i18n } from '@kit.LocalizationKit';
 import { connection } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
@@ -25,6 +25,8 @@ struct Index {
   @State isError: boolean = false;
   @State isNetworkError: boolean = false;
   @StorageLink('deepLinkUrl') @Watch('onDeepLinkChange') deepLinkUrl: string = '';
+  // 系统语言适配：监听系统语言变化以重新注入 WebView
+  @StorageLink('systemLanguage') @Watch('onSystemLanguageChange') systemLanguage: string = '';
   controller: webview.WebviewController = new webview.WebviewController();
   delegate: webview.WebDownloadDelegate = new webview.WebDownloadDelegate();
   private pageLoadTimer: number = -1;
@@ -106,6 +108,8 @@ struct Index {
             this.isError = false;
             this.isNetworkError = false;
             this.startLoadTimeout();
+            // 在页面加载最早时机注入系统语言，确保网页 JS 读取 navigator.language 前已覆盖
+            this.injectLanguageOverride();
           })
           .onProgressChange((event) => {
             if (event) {
@@ -510,6 +514,58 @@ struct Index {
       `);
     } catch (err) {
       // JS 注入可能在受限页面失败，静默忽略
+    }
+  }
+
+  // 将系统语言标识转换为 BCP 47 格式（如 "zh-Hans-CN" → "zh-CN"），供 WebView navigator.language 使用
+  private getBCP47Language(): string {
+    try {
+      const raw: string = this.systemLanguage || i18n.System.getSystemLanguage();
+      if (!raw || raw.length === 0) {
+        return 'en';
+      }
+      const parts: string[] = raw.split('-');
+      const lang: string = parts[0]; // "zh"
+      // 查找地区部分（格式如 "zh-Hans-CN"，最后一段为2个大写字母的地区代码）
+      const lastPart: string = parts.length > 0 ? parts[parts.length - 1] : '';
+      if (lastPart.length === 2 && lastPart === lastPart.toUpperCase()) {
+        return `${lang}-${lastPart}`;
+      }
+      return lang;
+    } catch (err) {
+      return 'en';
+    }
+  }
+
+  // 注入 JS 覆盖 navigator.language / navigator.languages，使网页感知系统语言
+  private injectLanguageOverride(): void {
+    const bcp47Lang: string = this.getBCP47Language();
+    hilog.info(DOMAIN, TAG, 'Injecting language: %{public}s', bcp47Lang);
+    try {
+      this.controller.runJavaScript(`
+        (function() {
+          var lang = '${bcp47Lang}';
+          Object.defineProperty(Object.getPrototypeOf(navigator), 'language', {
+            get: function() { return lang; },
+            configurable: true
+          });
+          Object.defineProperty(Object.getPrototypeOf(navigator), 'languages', {
+            get: function() { return [lang]; },
+            configurable: true
+          });
+        })();
+      `);
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, 'Failed to inject language override');
+    }
+  }
+
+  // 系统语言变化时，重新注入 JS 覆盖 navigator.language。
+  // 不自动刷新页面（避免打断用户当前操作），语言将在下次页面导航/加载时生效。
+  onSystemLanguageChange(): void {
+    if (this.systemLanguage && this.systemLanguage !== '') {
+      hilog.info(DOMAIN, TAG, 'System language changed, re-injecting language override');
+      this.injectLanguageOverride();
     }
   }
 
