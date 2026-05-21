@@ -28,7 +28,6 @@ struct Index {
   delegate: webview.WebDownloadDelegate = new webview.WebDownloadDelegate();
   private pageLoadTimer: number = -1;
   private readonly LOAD_TIMEOUT_MS: number = 15000;
-  downloadCachePath: string = '';
   // 深色模式适配
   @StorageProp('currentColorMode') @Watch('onColorModeChange')
   currentColorMode: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
@@ -49,6 +48,11 @@ struct Index {
     }
     // 初始化背景色
     this.onColorModeChange();
+  }
+
+  aboutToDisappear(): void {
+    // 组件销毁前清理定时器，避免内存泄漏和无效回调
+    this.clearLoadTimeout();
   }
 
   // 系统深色模式切换时，同步 WebView 容器背景色，避免切换时白底闪烁
@@ -279,16 +283,19 @@ struct Index {
           Column() {
             Text(this.isNetworkError ? '󰚑' : '󰊠')
               .fontSize(48)
-              .fontColor('#999999')
+              .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                ? '#BBBBBB' : '#999999')
               .margin({ top: 80, bottom: 16 })
             Text(this.isNetworkError ? '网络未连接' : '页面加载失败')
               .fontSize(18)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#333333')
+              .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                ? '#FFFFFF' : '#333333')
               .margin({ bottom: 8 })
             Text(this.isNetworkError ? '请检查设备的网络连接设置' : '请检查网络连接后重试')
               .fontSize(14)
-              .fontColor('#999999')
+              .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                ? '#BBBBBB' : '#999999')
               .margin({ bottom: 24 })
             Button('重新加载')
               .type(ButtonType.Normal)
@@ -417,6 +424,11 @@ struct Index {
   }
 
   onBackPress(): boolean {
+    // 上传模态框打开时，优先关闭模态框，避免返回手势直接退出应用
+    if (this.showUploadModal) {
+      this.dismissUploadModal();
+      return true;
+    }
     try {
       if (this.controller.accessBackward()) {
         this.controller.backward();
@@ -496,7 +508,7 @@ struct Index {
         })();
       `);
     } catch (err) {
-      // JS injection may fail on restricted pages, ignore silently
+      // JS 注入可能在受限页面失败，静默忽略
     }
   }
 
@@ -529,6 +541,7 @@ struct Index {
     }
   }
 
+  // 分享当前页面 URL：获取 WebView 当前 URL 后唤起系统分享
   private shareCurrentPage(): void {
     try {
       let currentUrl: string = DEEPSEEK_URL;
@@ -621,6 +634,7 @@ struct Index {
     }
   }
 
+  // 导航到指定 URL（用于 DeepLink 跳转）
   private navigateToUrl(url: string): void {
     try {
       this.controller.loadUrl(url);
@@ -630,6 +644,7 @@ struct Index {
     }
   }
 
+  // 刷新当前页面
   private refreshPage(): void {
     try {
       this.controller.refresh();
@@ -639,14 +654,20 @@ struct Index {
     }
   }
 
+  // 注册 Web 下载代理：处理下载开始/进度/完成/失败，下载完成后可另存至公开目录
   private setupDownloadDelegate(): void {
     try {
+      // 用 GUID 映射下载沙箱路径，避免多个并发生下载时路径覆盖
+      const downloadPathMap: Record<string, string> = {};
+
       this.delegate.onBeforeDownload((webDownloadItem: webview.WebDownloadItem) => {
         const fileName: string = webDownloadItem.getSuggestedFileName();
-        hilog.info(DOMAIN, TAG, 'Download start: %{public}s', fileName);
-        // 下载到沙箱 web 缓存目录
-        this.downloadCachePath = this.getUIContext().getHostContext()!.cacheDir + '/web/' + fileName;
-        webDownloadItem.start(this.downloadCachePath);
+        const guid: string = webDownloadItem.getGuid();
+        hilog.info(DOMAIN, TAG, 'Download start: %{public}s, guid=%{public}s', fileName, guid);
+        const cachePath: string =
+          this.getUIContext().getHostContext()!.cacheDir + '/web/' + fileName;
+        downloadPathMap[guid] = cachePath;
+        webDownloadItem.start(cachePath);
       });
 
       this.delegate.onDownloadUpdated((webDownloadItem: webview.WebDownloadItem) => {
@@ -655,18 +676,25 @@ struct Index {
       });
 
       this.delegate.onDownloadFinish((webDownloadItem: webview.WebDownloadItem) => {
-        hilog.info(DOMAIN, TAG, 'Download finish: %{public}s', webDownloadItem.getGuid());
+        const guid: string = webDownloadItem.getGuid();
+        const savePath: string = downloadPathMap[guid];
+        hilog.info(DOMAIN, TAG, 'Download finish: %{public}s', guid);
         this.getUIContext().getPromptAction().showToast({
           message: '下载完成',
           duration: 2000
         });
-        // 可选：下载完成后打开系统保存弹窗，允许用户另存至公共目录
-        this.saveToPublicDownload(webDownloadItem.getSuggestedFileName());
+        if (savePath) {
+          this.saveToPublicDownload(webDownloadItem.getSuggestedFileName(), savePath);
+          downloadPathMap[guid] = '';
+        }
       });
 
       this.delegate.onDownloadFailed((webDownloadItem: webview.WebDownloadItem) => {
-        hilog.error(DOMAIN, TAG, 'Download failed: code=%{public}d',
-          webDownloadItem.getLastErrorCode());
+        const guid: string = webDownloadItem.getGuid();
+        hilog.error(DOMAIN, TAG, 'Download failed: code=%{public}d, guid=%{public}s',
+          webDownloadItem.getLastErrorCode(), guid);
+        // 清理失败下载的路径映射
+        downloadPathMap[guid] = '';
         this.getUIContext().getPromptAction().showToast({
           message: '下载失败',
           duration: 2000
@@ -680,7 +708,8 @@ struct Index {
     }
   }
 
-  private saveToPublicDownload(fileName: string): void {
+  // 将已完成的下载从沙箱复制到用户选择的公开目录
+  private saveToPublicDownload(fileName: string, srcPath: string): void {
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const documentSaveOptions = new picker.DocumentSaveOptions();
@@ -696,7 +725,6 @@ struct Index {
         // DOWNLOAD 模式返回的是文件夹路径，需拼接文件名
         const pubDir: string = new fileUri.FileUri(uri).path;
         const pubFilePath: string = pubDir + '/' + fileName;
-        const srcPath: string = this.downloadCachePath;
         hilog.info(DOMAIN, TAG, 'Copy from sandbox to public: %{public}s -> %{public}s',
           srcPath, pubFilePath);
 
@@ -739,14 +767,17 @@ struct Index {
     }
   }
 
-  // 拍照：使用 CameraPicker 调用系统相机
+  // 拍照：使用 CameraPicker 调用系统相机，结果通过 pendingFileListHandler 回传给 WebView
   private async handleTakePhoto(): Promise<void> {
+    let pickerFileCreated: boolean = false;
+    let filePath: string = '';
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const pathDir: string = context.filesDir;
       const fileName: string = `${new Date().getTime()}.jpg`;
-      const filePath: string = pathDir + '/' + fileName;
+      filePath = pathDir + '/' + fileName;
       fs.createRandomAccessFileSync(filePath, fs.OpenMode.CREATE);
+      pickerFileCreated = true;
       const saveUri: string = fileUri.getUriFromPath(filePath);
       const pickerProfile: cameraPicker.PickerProfile = {
         cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK,
@@ -760,10 +791,25 @@ struct Index {
         }
         this.showUploadModal = false;
         this.pendingFileListHandler = null;
+      } else {
+        // 用户取消或拍照失败：清理预创建的临时文件，保留模态框供用户重试
+        this.tryDeleteTempFile(filePath);
       }
-      // 用户取消拍照时不关闭模态框，不通知 web 端
     } catch (err) {
+      // 相机不可用或系统异常：清理临时文件，保留模态框
+      if (pickerFileCreated) {
+        this.tryDeleteTempFile(filePath);
+      }
       hilog.warn(DOMAIN, TAG, 'CameraPicker cancelled or failed');
+    }
+  }
+
+  // 安全删除临时文件（失败不抛异常）
+  private tryDeleteTempFile(filePath: string): void {
+    try {
+      fs.unlinkSync(filePath);
+    } catch (_e) {
+      // 文件可能已被系统清理，忽略
     }
   }
 
