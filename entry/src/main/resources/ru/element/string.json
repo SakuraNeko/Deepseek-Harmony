@@ -1,0 +1,68 @@
+{
+  "string": [
+    {
+      "name": "error_network_title",
+      "value": "Нет сети"
+    },
+    {
+      "name": "error_load_title",
+      "value": "Ошибка загрузки"
+    },
+    {
+      "name": "error_network_desc",
+      "value": "Проверьте настройки сети устройства"
+    },
+    {
+      "name": "error_load_desc",
+      "value": "Проверьте подключение к сети и повторите попытку"
+    },
+    {
+      "name": "retry_button",
+      "value": "Перезагрузить"
+    },
+    {
+      "name": "upload_modal_title",
+      "value": "Выберите способ загрузки"
+    },
+    {
+      "name": "upload_photo",
+      "value": "Камера"
+    },
+    {
+      "name": "upload_album",
+      "value": "Альбом"
+    },
+    {
+      "name": "upload_file",
+      "value": "Файл"
+    },
+    {
+      "name": "upload_hint",
+      "value": "ⓘ Распознаётся только текст с изображений"
+    },
+    {
+      "name": "share_description",
+      "value": "Поделиться из DeepSeek"
+    },
+    {
+      "name": "share_content_prefix",
+      "value": "DeepSeek"
+    },
+    {
+      "name": "toast_external_link",
+      "value": "Не удалось открыть внешнюю ссылку"
+    },
+    {
+      "name": "toast_download_done",
+      "value": "Загрузка завершена"
+    },
+    {
+      "name": "toast_download_fail",
+      "value": "Ошибка загрузки"
+    },
+    {
+      "name": "toast_save_done",
+      "value": "Сохранено в Загрузки"
+    }
+  ]
+}

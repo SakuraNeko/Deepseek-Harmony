@@ -1,0 +1,68 @@
+{
+  "string": [
+    {
+      "name": "error_network_title",
+      "value": "網絡未連接"
+    },
+    {
+      "name": "error_load_title",
+      "value": "頁面載入失敗"
+    },
+    {
+      "name": "error_network_desc",
+      "value": "請檢查裝置的網絡連接設定"
+    },
+    {
+      "name": "error_load_desc",
+      "value": "請檢查網絡連接後重試"
+    },
+    {
+      "name": "retry_button",
+      "value": "重新載入"
+    },
+    {
+      "name": "upload_modal_title",
+      "value": "選擇上載方式"
+    },
+    {
+      "name": "upload_photo",
+      "value": "拍照"
+    },
+    {
+      "name": "upload_album",
+      "value": "相簿"
+    },
+    {
+      "name": "upload_file",
+      "value": "檔案"
+    },
+    {
+      "name": "upload_hint",
+      "value": "ⓘ 僅識別圖片中的文字"
+    },
+    {
+      "name": "share_description",
+      "value": "來自DeepSeek的分享內容"
+    },
+    {
+      "name": "share_content_prefix",
+      "value": "DeepSeek分享"
+    },
+    {
+      "name": "toast_external_link",
+      "value": "無法開啟外部連結"
+    },
+    {
+      "name": "toast_download_done",
+      "value": "下載完成"
+    },
+    {
+      "name": "toast_download_fail",
+      "value": "下載失敗"
+    },
+    {
+      "name": "toast_save_done",
+      "value": "已儲存至下載目錄"
+    }
+  ]
+}

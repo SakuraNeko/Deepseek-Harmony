@@ -1,0 +1,68 @@
+{
+  "string": [
+    {
+      "name": "error_network_title",
+      "value": "No Network"
+    },
+    {
+      "name": "error_load_title",
+      "value": "Page Load Failed"
+    },
+    {
+      "name": "error_network_desc",
+      "value": "Please check your device network settings"
+    },
+    {
+      "name": "error_load_desc",
+      "value": "Please check your network connection and try again"
+    },
+    {
+      "name": "retry_button",
+      "value": "Reload"
+    },
+    {
+      "name": "upload_modal_title",
+      "value": "Choose Upload Method"
+    },
+    {
+      "name": "upload_photo",
+      "value": "Camera"
+    },
+    {
+      "name": "upload_album",
+      "value": "Album"
+    },
+    {
+      "name": "upload_file",
+      "value": "File"
+    },
+    {
+      "name": "upload_hint",
+      "value": "ⓘ Only text from images will be recognized"
+    },
+    {
+      "name": "share_description",
+      "value": "Shared from DeepSeek"
+    },
+    {
+      "name": "share_content_prefix",
+      "value": "DeepSeek Share"
+    },
+    {
+      "name": "toast_external_link",
+      "value": "Unable to open external link"
+    },
+    {
+      "name": "toast_download_done",
+      "value": "Download complete"
+    },
+    {
+      "name": "toast_download_fail",
+      "value": "Download failed"
+    },
+    {
+      "name": "toast_save_done",
+      "value": "Saved to Downloads"
+    }
+  ]
+}
