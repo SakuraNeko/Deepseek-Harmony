@@ -41,6 +41,8 @@ struct Index {
   @State showBackButton: boolean = false;
   // 上传方式选择模态框
   @State showUploadModal: boolean = false;
+  // 语言切换后显示右下角刷新按钮
+  @State showLangRefreshBtn: boolean = false;
   private pendingFileListHandler: ((fileList: Array<string>) => void) | null = null;
 
   aboutToAppear(): void {
@@ -403,6 +405,40 @@ struct Index {
           .onClick(() => this.dismissUploadModal())
           .zIndex(100)
         }
+
+        // 语言切换刷新按钮：系统语言变化时在右下角显示圆形刷新按钮
+        if (this.showLangRefreshBtn) {
+          Button() {
+            Text('↻')
+              .fontSize(22)
+              .fontColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+                ? '#FFFFFF' : '#333333')
+          }
+          .width(44)
+          .height(44)
+          .type(ButtonType.Circle)
+          .backgroundColor(this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+            ? 'rgba(40, 40, 40, 0.9)' : 'rgba(255, 255, 255, 0.9)')
+          .shadow({
+            radius: 12,
+            color: this.currentColorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+              ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.1)',
+            offsetY: 4
+          })
+          .position({ x: '100%', y: '100%' })
+          .markAnchor({ x: '100%', y: '100%' })
+          .translate({ x: -24, y: -24 })
+          .onClick(() => {
+            try {
+              this.controller.refresh();
+            } catch (err) {
+              hilog.error(DOMAIN, TAG, 'Language refresh failed');
+            }
+            this.showLangRefreshBtn = false;
+          })
+          .transition(TransitionEffect.OPACITY.animation({ duration: 300 }))
+          .zIndex(101)
+        }
       }
       .width('100%')
       .layoutWeight(1)
@@ -560,12 +596,13 @@ struct Index {
     }
   }
 
-  // 系统语言变化时，重新注入 JS 覆盖 navigator.language。
-  // 不自动刷新页面（避免打断用户当前操作），语言将在下次页面导航/加载时生效。
+  // 系统语言变化时，重新注入 JS 覆盖 navigator.language 并显示刷新按钮。
+  // 用户可点击按钮手动刷新以应用新语言，避免自动刷新打断当前操作。
   onSystemLanguageChange(): void {
     if (this.systemLanguage && this.systemLanguage !== '') {
       hilog.info(DOMAIN, TAG, 'System language changed, re-injecting language override');
       this.injectLanguageOverride();
+      this.showLangRefreshBtn = true;
     }
   }
 
